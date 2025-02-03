@@ -11,7 +11,6 @@ def conectar_com_banco():
             port=25273
         )
         if conexao.is_connected():
-            # criar_tabela_consultas(conexao)
             print('Conectado ao banco de dados')
             return conexao
     except Error as e:
@@ -21,6 +20,37 @@ def conectar_com_banco():
 def fechar_banco(conexao):
     if conexao and conexao.is_connected():
         conexao.close()
+
+def tabela_empresa(conexao):
+    cursor = conexao.cursor()
+
+    cursor.execute(""" 
+        CREATE TABLE IF NOT EXISTS empresas (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cnpj VARCHAR(20) ,
+            razao_social VARCHAR(255),
+            user VARCHAR(255),
+            data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    conexao.commit()
+    cursor.close()
+
+def tabela_usuario(conexao):
+    cursor = conexao.cursor()
+
+    cursor.execute(""" 
+        CREATE TABLE IF NOT EXISTS user (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(255),
+            senha VARCHAR(255),
+            data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    
+    conexao.commit()
+    cursor.close()
 
 def criar_tabela(conexao):
     try:
@@ -51,3 +81,34 @@ def criar_tabela(conexao):
         # print(f"Erro ao criar a tabela: {e}")
     finally:
         cursor.close()
+    
+def tabela_slide(conexao):
+    cursor = conexao.cursor()
+
+    cursor.execute(""" 
+        CREATE TABLE IF NOT EXISTS slides (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(255) not null,
+            id_empresa int,
+            FOREIGN KEY (id_empresa) REFERENCES empresas(id)
+        );
+    """)
+    
+    conexao.commit()
+    cursor.close()
+
+def codigos_slide(conexao):
+    cursor = conexao.cursor()
+
+    cursor.execute(""" 
+        CREATE TABLE IF NOT EXISTS slide_codigos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            slide_id INT,
+            codigo VARCHAR(255) not null,
+            `Data de Envio` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (slide_id) REFERENCES slides(id) ON DELETE CASCADE
+        );
+    """)
+    
+    conexao.commit()
+    cursor.close()

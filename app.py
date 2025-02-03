@@ -1,15 +1,23 @@
 from PySide6 import QtWidgets, QtGui, QtCore
-from PySide6.QtWidgets import QMessageBox, QTableWidgetItem, QFileDialog, QInputDialog
+from PySide6.QtWidgets import QMessageBox, QTableWidgetItem, QFileDialog, QInputDialog, QDialog, QVBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QComboBox
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtCore import Qt
 from utils.icone import usar_icone
-from db.conexao import conectar_com_banco, fechar_banco, criar_tabela
+from utils.mensagem import mensagem_error, mensagem_sucesso, mensagem_aviso
+from db.conexao import conectar_com_banco, fechar_banco, criar_tabela, tabela_slide, codigos_slide, tabela_empresa, tabela_usuario
 from middleware.processamento import processar_arquivo
 import sys
 from datetime import datetime
 import os
 import requests
 import mysql.connector
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN
+# from pptx.shapes import MSO_SHAPE
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.dml.color import RGBColor
+from pathlib import Path
 
 class UserLogin(QtWidgets.QWidget):
     def __init__(self):
@@ -100,20 +108,14 @@ class UserLogin(QtWidgets.QWidget):
         user = self.user_input.text().strip()
         password = self.password_input.text().strip()
         conexao = conectar_com_banco()
+        tabela_usuario(conexao)
         cursor = conexao.cursor()
         cursor.execute("USE railway")
         cursor.execute("SELECT senha FROM user WHERE nome = %s", (user,))
         result = cursor.fetchone()
         
         if not result:
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-            msg_box.setWindowTitle('Erro')
-            msg_box.setText('Usuário ou senha inválidos.')
-            usar_icone(msg_box)
-            msg_box.setStyleSheet("background-color: #001F3F; color: #ffffff; font-size: 20px; font-weight: bold;")
-            msg_box.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))    
-            msg_box.exec()
+            mensagem_error("Usuário ou senha inválidos.")
             return
         result = result[0]
         
@@ -124,14 +126,7 @@ class UserLogin(QtWidgets.QWidget):
             self.empresa_window.showMaximized()
             self.close()
         else:
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-            msg_box.setWindowTitle('Erro')
-            msg_box.setText('Usuário ou senha inválidos.')
-            usar_icone(msg_box)
-            msg_box.setStyleSheet("background-color: #001F3F; color: #ffffff; font-size: 20px; font-weight: bold;")
-            msg_box.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))    
-            msg_box.exec()
+            mensagem_error("Usuário ou senha inválidos.")
             return
     
     def cadastrar_user(self):
@@ -169,6 +164,12 @@ class UserCadastro(QtWidgets.QWidget):
         self.password_input.setPlaceholderText('Digite a senha')
         self.password_input.setStyleSheet("font-size: 20px; padding: 8px; border: 1px solid #ccc; border-radius: 5px; color: #000000;")
 
+        self.password_label_confirm = QtWidgets.QLabel('Confirme a senha:')
+        self.password_label_confirm.setStyleSheet("font-size: 20px; font-weight: bold; color: #000000; margin: 0px; padding: 0px;")
+        self.password_input_confirm = QtWidgets.QLineEdit()
+        self.password_input_confirm.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.password_input_confirm.setPlaceholderText('Confirme a senha')
+        self.password_input_confirm.setStyleSheet("font-size: 20px; padding: 8px; border: 1px solid #ccc; border-radius: 5px; color: #000000;")
 
         # Botão para login
         self.cadastrar_button = QtWidgets.QPushButton('Cadastrar')
@@ -215,6 +216,8 @@ class UserCadastro(QtWidgets.QWidget):
         group_box_layout.addWidget(self.user_input)
         group_box_layout.addWidget(self.password_label)
         group_box_layout.addWidget(self.password_input)
+        group_box_layout.addWidget(self.password_label_confirm)
+        group_box_layout.addWidget(self.password_input_confirm)
         group_box_layout.addWidget(self.cadastrar_button)
         group_box_layout.addWidget(self.voltar_btn)
         group_box.setLayout(group_box_layout)
@@ -232,43 +235,27 @@ class UserCadastro(QtWidgets.QWidget):
     def cadastrar_user(self):
         user = self.user_input.text().strip()
         password = self.password_input.text().strip()
+        password_confirm = self.password_input_confirm.text().strip()
         print(user, password)
         print(len(user), len(password))
         if len(user) < 1:
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-            msg_box.setWindowTitle('Erro')
-            msg_box.setText('Usuário precisa ter pelo menos um caractere.')
-            usar_icone(msg_box)
-            msg_box.setStyleSheet("background-color: #001F3F; color: #ffffff; font-size: 16px; font-weight: bold;")
-            msg_box.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))    
-            msg_box.exec()
+            mensagem_aviso("Usuário precisa ter pelo menos um caractere.")
             return
         if len(password) < 1:
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-            msg_box.setWindowTitle('Erro')
-            msg_box.setText('Senha precisa ter pelo menos um caractere.')
-            usar_icone(msg_box)
-            msg_box.setStyleSheet("background-color: #001F3F; color: #ffffff; font-size: 16px; font-weight: bold;")
-            msg_box.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))    
-            msg_box.exec()
+            mensagem_aviso("Senha precisa ter pelo menos um caractere.")
+            return
+
+        if password != password_confirm:
+            mensagem_error("Senhas não conferem.")
             return
 
         conexao = conectar_com_banco()
+        tabela_usuario(conexao)
         cursor = conexao.cursor()
         cursor.execute("USE railway")
         cursor.execute("INSERT INTO user (nome, senha) VALUES (%s, %s)", (user, password))
         conexao.commit()
-        msg_box = QtWidgets.QMessageBox()
-        msg_box.setIcon(QtWidgets.QMessageBox.Information)
-        msg_box.setWindowTitle('Sucesso')
-        msg_box.setText('Usuário cadastrado com sucesso.')
-        usar_icone(msg_box)
-        msg_box.setStyleSheet("background-color: #001F3F; color: #ffffff; font-size: 16px; font-weight: bold;")
-        msg_box.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))    
-        msg_box.exec()
-        self.close()    
+        mensagem_sucesso("Usuário cadastrado com sucesso.")
 
     def voltar(self):
         self.login = UserLogin()
@@ -347,6 +334,9 @@ class EmpresaWindow(QtWidgets.QWidget):
 
     def entrar(self):
         empresa = self.combo_empresas.currentText()
+        if empresa == "Selecione uma empresa":
+            mensagem_aviso("Selecione uma empresa.")
+            return
         self.janela_principal = MainWindow(empresa, self.user)
         usar_icone(self.janela_principal)
         self.janela_principal.showMaximized()
@@ -360,6 +350,7 @@ class EmpresaWindow(QtWidgets.QWidget):
 
     def carregar_empresas(self):
         conexao = conectar_com_banco()
+        tabela_empresa(conexao)
         try:
             cursor = conexao.cursor()
             cursor.execute("USE railway")
@@ -367,7 +358,9 @@ class EmpresaWindow(QtWidgets.QWidget):
             empresas = [row[0] for row in cursor.fetchall()]
             
             self.combo_empresas.clear()
+            self.combo_empresas.addItem("Selecione uma empresa")
             self.combo_empresas.addItems(empresas)
+            self.combo_empresas.model().item(0).setEnabled(False)
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Erro", f"Ocorreu um erro ao acessar o banco de dados: {e}")
@@ -467,50 +460,23 @@ class EmpresaCadastro(QtWidgets.QWidget):
         razao_social = self.razao_social_input.text().strip()
 
         if len(cnpj) != 18:
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-            msg_box.setWindowTitle('Erro')
-            msg_box.setText('CNPJ inválido.')
-            usar_icone(msg_box)
-            msg_box.setStyleSheet("background-color: #001F3F; color: #ffffff; font-size: 16px; font-weight: bold;")
-            msg_box.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))    
-            msg_box.exec()
+            mensagem_error("CNPJ inválido.")
             return
         
         if len(razao_social) < 1:
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-            msg_box.setWindowTitle('Erro')
-            msg_box.setText('Razão social inválida.')
-            usar_icone(msg_box)
-            msg_box.setStyleSheet("background-color: #001F3F; color: #ffffff; font-size: 16px; font-weight: bold;")
-            msg_box.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))    
-            msg_box.exec()
+            mensagem_error("Razão social inválida.")
             return
         
         try:
             conexao = conectar_com_banco()
+            tabela_empresa(conexao)
             cursor = conexao.cursor()
             cursor.execute("USE railway")
             cursor.execute("INSERT INTO empresas (cnpj, razao_social, user) VALUES (%s, %s, %s)", (cnpj, razao_social, self.user))
             conexao.commit()
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Information)
-            msg_box.setWindowTitle('Sucesso')
-            msg_box.setText('Empresa cadastrada com sucesso.')
-            usar_icone(msg_box)
-            msg_box.setStyleSheet("background-color: #001F3F; color: #ffffff; font-size: 16px; font-weight: bold;")
-            msg_box.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))    
-            msg_box.exec()
+            mensagem_sucesso("Empresa cadastrada com sucesso.")
         except Exception as e:
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-            msg_box.setWindowTitle('Erro')
-            msg_box.setText(f'Ocorreu um erro ao cadastrar a empresa: {e}')
-            usar_icone(msg_box)
-            msg_box.setStyleSheet("background-color: #001F3F; color: #ffffff; font-size: 16px; font-weight: bold;")
-            msg_box.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))    
-            msg_box.exec()
+            mensagem_error(f"Ocorreu um erro ao cadastrar a empresa: {e}")
         finally:
             if conexao.is_connected():
                 cursor.close()
@@ -629,7 +595,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         dados = processar_arquivo(arquivo)
         if dados is None:
-            QtWidgets.QMessageBox.warning(self, "Erro", "Erro ao processar o arquivo!")
+            mensagem_error("Erro ao processar o arquivo!")
             progress_bar.setValue(0)
             return
 
@@ -651,7 +617,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
         if not ok_mes:
-            QtWidgets.QMessageBox.warning(self, "Operação Cancelada", "Nenhum mês foi selecionado.")
+            mensagem_aviso("Nenhum mês foi selecionado.")
             progress_bar.setValue(0)
             return
 
@@ -665,7 +631,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
         if not ok_ano:
-            QtWidgets.QMessageBox.warning(self, "Operação Cancelada", "Nenhum ano foi selecionado.")
+            mensagem_aviso("Nenhum ano foi selecionado.")
             progress_bar.setValue(0)
             return
 
@@ -706,15 +672,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 for _, row in dados.iterrows()
             ]
 
-            self.insert_data(self, conexao, dados_para_inserir, balancete_mensal, mes_ano)
+            self.insert_data(conexao, dados_para_inserir, balancete_mensal, mes_ano)
             progress_bar.setValue(90)
 
             fechar_banco(conexao)
             progress_bar.setValue(100)
-            QtWidgets.QMessageBox.information(self, "Sucesso", "Dados inseridos com sucesso!")
+            mensagem_sucesso("Dados inseridos com sucesso!")
             progress_bar.setValue(0)
         else:
-            QtWidgets.QMessageBox.critical(self, "Erro", "Erro ao conectar ao banco de dados.")
+            mensagem_error("Erro ao conectar ao banco de dados.")
             progress_bar.setValue(0)
 
     def verificar_periodo_existente(self, conexao, tabela, periodo, empresa):
@@ -749,13 +715,15 @@ class MainWindow(QtWidgets.QMainWindow):
             # print("Dados inseridos com sucesso!")
                 
         except mysql.connector.Error as e:
-            print(f"Erro ao inserir dados: {e}")
+            mensagem_error(f"Erro ao inserir dados: {e}")
         finally:
             cursor.close()
 
     def criar_botoes(self):
         self.botoes_info = [
             ("Inserir Balancete", lambda: self.inserir_dados_mensal(self.progress_bar, self.label_arquivo, self.empresa, self.user)),
+            ("Criar Slide", lambda: self.criar_slide(self.combo_box_slides, self.tabela, self.empresa)),
+            ("Editar Slide", lambda: self.editar_slide(self.combo_box_slides, self.tabela, self.empresa)),
         ]
 
         for texto, comando in self.botoes_info:
@@ -771,7 +739,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 color: #ffffff;
             }
             QPushButton:hover {
-                background-color: #005588;  /* Cor de fundo quando o mouse passa sobre o botão */
+                background-color: #005588 !important;  /* Cor de fundo quando o mouse passa sobre o botão */
                 color:#ffffff;  /* Cor do texto quando o mouse passa sobre o botão */
             }""")
             botao.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
@@ -790,6 +758,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.combo_box_meses = QtWidgets.QComboBox()
         
         conexao = conectar_com_banco()
+        tabela_slide(conexao)
+        codigos_slide(conexao)
         cursor = conexao.cursor()
         
         cursor.execute("SELECT id FROM empresas WHERE razao_social = %s", (self.empresa,))
@@ -808,8 +778,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.combo_ano.activated.connect(lambda: self.limpar_tabela(self.tabela))
         self.combo_ano.activated.connect(self.reset_combo_slides)
         self.combo_ano.activated.connect(self.reset_combo)
-        self.combo_box_meses.activated.connect(self.reset_combo)
-        self.combo_box_slides.activated.connect(self.reset_combo_slides)
+        self.combo_box_meses.activated.connect(self.reset_combo_slides)
+        self.combo_box_slides.activated.connect(self.reset_combo)
 
         self.combo_box_layout.addWidget(self.combo_ano)
         self.combo_box_layout.addWidget(self.combo_box_meses)
@@ -962,33 +932,27 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         if ano == "Escolha o ano" and combo_text not in ["Slides", "Balancetes"]:
-            self.mensagem_error("Selecione um ano válido.")
+            mensagem_error("Selecione um ano válido.")
             return
         if combo_text not in ["Slides", "Balancetes"]:
             self.gerar_tabela(tabela, combo_text, empresa_selecionada, ano, stack_layout)
-
-    def mensagem_error(self, mensagem):
-        msg_erro = QtWidgets.QMessageBox()
-        msg_erro.setIcon(QtWidgets.QMessageBox.Critical)
-        msg_erro.setWindowTitle("Erro")
-        msg_erro.setText(mensagem)
-        usar_icone(msg_erro) 
-        msg_erro.exec()
 
     def gerar_tabela(self, tabela, tabela_selecionada, empresa, ano, stack_layout):
         dados_balancete, colunas = self.obter_dados_balancete(tabela_selecionada, empresa, ano)
         
         if dados_balancete is None or len(dados_balancete) == 0:
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Information)
-            msg_box.setWindowTitle("Informação")
-            msg_box.setText("Nenhum dado encontrado para os critérios selecionados.")
-            msg_box.setStandardButtons(QtWidgets.QMessageBox.Ok)
-            usar_icone(msg_box)
-            tabela.clearContents()
-            tabela.setRowCount(0)
+            mensagem_aviso("Nenhum dado encontrado para os critérios selecionados.")
+            # msg_box = QtWidgets.QMessageBox()
+            # msg_box.setIcon(QtWidgets.QMessageBox.Information)
+            # msg_box.setWindowTitle("Informação")
+            # msg_box.setText("Nenhum dado encontrado para os critérios selecionados.")
+            # msg_box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            # usar_icone(msg_box)
+            stack_layout.setCurrentWidget(self.imagem_placeholder)
+            # tabela.clearContents()
+            # tabela.setRowCount(0)
 
-            msg_box.exec()
+            # msg_box.exec()
             return
         
         self.preencher_tabela_com_dados(tabela, dados_balancete, colunas, stack_layout)
@@ -1085,7 +1049,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         return dados, colunas
 
                     elif tabela not in meses_dict and tabela != "Balancete Acumulado":
-                        cursor.execute("SELECT id from empresas where nome = %s", (empresa,))
+                        cursor.execute("SELECT id from empresas where razao_social = %s", (empresa,))
                         id_empresa = cursor.fetchone()[0]
                         cursor.execute("""
                             SELECT id from slides where nome = %s and id_empresa = %s
@@ -1205,6 +1169,410 @@ class MainWindow(QtWidgets.QMainWindow):
         for coluna in range(tabela.columnCount()):
             largura_atual = tabela.columnWidth(coluna)
             tabela.setColumnWidth(coluna, largura_atual + 20)
+    
+    def criar_slide(self, combo_box, tabela, empresa):
+        with conectar_com_banco() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM balancete_mensal WHERE empresa = %s LIMIT 1", (empresa,))
+                tabela_vazia = cursor.fetchone() is None
+    
+    # Se a tabela estiver vazia, exibir uma mensagem e retornar
+        if tabela_vazia:
+            mensagem_aviso("Insira um balancete para continuar.")
+            return
+        
+        # Cria uma janela de diálogo para inserir o nome do slide e os números das contas
+        dialogo = QDialog(self)
+        dialogo.setWindowTitle("Criar Novo Slide")
+        
+        # Ajuste o tamanho da janela
+        dialogo.resize(500, 400)  # Tamanho maior da janela
+        
+        layout = QVBoxLayout(dialogo)
+        
+        # Campo de entrada para o nome do slide
+        nome_label = QLabel("Digite o nome do slide:", dialogo)
+        layout.addWidget(nome_label)
+        
+        nome_input = QLineEdit(dialogo)
+        layout.addWidget(nome_input)
+        
+        # Consultar as contas disponíveis no banco de dados
+        with conectar_com_banco() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT DISTINCT Conta, Descrição FROM balancete_mensal WHERE empresa = %s ORDER BY Conta", (empresa,))
+                contas = cursor.fetchall()
+        
+        # Lista de contas no QListWidget
+        contas_lista = QListWidget(dialogo)
+        contas_lista.setSelectionMode(QListWidget.MultiSelection)  # Permite seleção múltipla
+        
+        # Adicionar estilo para melhorar a aparência
+        contas_lista.setStyleSheet("""
+            QListWidget {
+                font-size: 14px;
+                border: 1px solid #ccc;
+                background-color: black;
+                padding: 5px;
+            }
+            QListWidget::item {
+                padding: 5px;
+                border-radius: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #4CAF50;  /* Cor de fundo para o item selecionado */
+                color: white;
+            }
+            QListWidget::item:hover {
+                background-color: #191970;  /* Cor ao passar o mouse */
+            }
+        """)
+        contas_lista.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        # Adicionar as contas na lista
+        for conta in contas:
+            contas_lista.addItem(f"{conta[0]} - {conta[1]}")
+        
+        layout.addWidget(contas_lista)
+        
+        # Botão de salvar
+        salvar_btn = QPushButton("Salvar", dialogo)
+        salvar_btn.clicked.connect(lambda: self.salvar_numeros_contas(
+            nome_input, contas_lista.selectedItems(), dialogo, combo_box, tabela, empresa))
+        salvar_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        layout.addWidget(salvar_btn)
+        
+        dialogo.exec()
+    
+    def salvar_numeros_contas(self, nome_input, contas_selecionadas, dialogo, combo_box, tabela, empresa):
+    # Obtém o nome do slide e os números das contas
+        with conectar_com_banco() as conn:
+            tabela_slide(conn)
+            codigos_slide(conn)
+
+        nome_slide = nome_input.text().strip()
+        contas = [item.text().split(" - ")[0] for item in contas_selecionadas]  # Extrai o código da conta
+        
+        if not nome_slide:
+            mensagem_aviso("Digite o nome do slide.")
+            return
+        elif not contas:
+            mensagem_aviso("Selecione ao menos uma conta.")
+            # print("Erro: Nome do slide ou contas inválidas.")
+            return
+        # Conexão com o banco de dados
+        conexao = conectar_com_banco()
+        cursor = conexao.cursor()
+
+        try:
+            # Inserir o slide na tabela 'slides'
+            cursor.execute(
+                "INSERT INTO slides (nome, id_empresa) VALUES (%s, (SELECT id FROM empresas WHERE razao_social = %s))",
+                (nome_slide, empresa)
+            )
+            slide_id = cursor.lastrowid  
+
+        
+            for conta in contas:
+                cursor.execute(
+                    "INSERT INTO slide_codigos (slide_id, codigo) VALUES (%s, %s)",
+                    (slide_id, conta)
+                )
+
+            conexao.commit()  # Confirma as alterações no banco de dados
+            
+            # Atualiza o combo_box com o novo slide
+            combo_box.addItem(nome_slide)
+            
+            mensagem_sucesso("Slide criado com sucesso!")
+            # Fecha o diálogo
+            dialogo.accept()
+
+        except Exception as e:
+            # print(f"Erro ao salvar o slide: {e}")
+            conexao.rollback()  # Desfaz alterações em caso de erro
+        
+        finally:
+            cursor.close()
+            conexao.close()
+
+
+    def editar_slide(self, combo_box, tabela, empresa):
+        with conectar_com_banco() as conexao:
+            with conexao.cursor() as cursor:
+                cursor.execute("SELECT id FROM empresas WHERE razao_social = %s", (empresa,))
+                id_empresa = cursor.fetchone()[0]
+                cursor.execute("SELECT id, nome FROM slides WHERE id_empresa = %s", (id_empresa,))
+                slides = cursor.fetchall()
+                cursor.execute("SELECT DISTINCT Conta, Descrição FROM balancete_mensal WHERE empresa = %s ORDER BY Conta", (empresa,))
+                contas = cursor.fetchall()
+
+        if not slides:
+            mensagem_aviso("Não há slides cadastrados para a empresa selecionada.")
+            return
+        
+        dialogo = QDialog(self)
+        dialogo.setWindowTitle("Editar Slide")
+        dialogo.resize(500, 400)
+
+        layout = QVBoxLayout(dialogo)
+
+        slide_label = QLabel("Selecione o slide a ser editado:", dialogo)
+        layout.addWidget(slide_label)
+
+        slide_combo = QComboBox(dialogo)
+
+        
+        # Associar o slide_id com o nome
+        for slide in slides:
+            slide_combo.addItem(slide[1], slide[0])  # Adiciona o nome e armazena o id como dado
+        layout.addWidget(slide_combo)
+
+        nome_label = QLabel("Digite o novo nome do slide:", dialogo)
+        layout.addWidget(nome_label)
+
+        nome_input = QLineEdit(dialogo)
+        layout.addWidget(nome_input)
+
+        contas_label = QLabel("Selecione as contas do slide:", dialogo)
+        layout.addWidget(contas_label)
+
+        contas_lista = QListWidget(dialogo)
+        contas_lista.setSelectionMode(QListWidget.MultiSelection)
+
+        contas_lista.setStyleSheet(""" 
+            QListWidget {
+                font-size: 14px;
+                border: 1px solid #ccc;
+                background-color: black;
+                padding: 5px;
+            }
+            QListWidget::item {
+                padding: 5px;
+                border-radius: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #4CAF50;  /* Cor de fundo para o item selecionado */
+                color: white;
+            }
+            QListWidget::item:hover {
+                background-color: #191970;  /* Cor ao passar o mouse */
+            }
+        """)
+        contas_lista.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+
+        # Adicionar as contas na lista
+        for conta in contas:
+            contas_lista.addItem(f"{conta[0]} - {conta[1]}")
+        
+        layout.addWidget(contas_lista)
+
+        salvar_btn = QPushButton("Salvar", dialogo)
+        salvar_btn.clicked.connect(lambda: self.salvar_edicao_slide(
+            slide_combo, nome_input, contas_lista, dialogo, combo_box, tabela, empresa))
+        salvar_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        layout.addWidget(salvar_btn)
+
+        dialogo.exec()
+    
+    def salvar_edicao_slide(self, slide_combo, nome_input, contas_lista, dialogo, combo_box, tabela, empresa):
+    # Primeiro, obter o ID da empresa com base no nome
+        conexao = conectar_com_banco()
+        cursor = conexao.cursor()
+        
+        try:
+            cursor.execute("SELECT id FROM empresas WHERE razao_social = %s", (empresa,))
+            id_empresa = cursor.fetchone()
+            
+            if id_empresa is None:
+                # print("Erro: Empresa não encontrada.")
+                return
+            
+            id_empresa = id_empresa[0]  # Agora temos o ID da empresa
+
+            slide_id = slide_combo.currentData()  
+            novo_nome = nome_input.text().strip()
+            # print(empresa)
+            contas_selecionadas = [item.text().split(" - ")[0] for item in contas_lista.selectedItems()]
+
+            if not novo_nome:
+                mensagem_aviso("Digite o nome do slide.")
+                # print("Erro: Nome do slide inválido.")
+                return
+            elif not contas_selecionadas:
+                mensagem_aviso("Selecione ao menos uma conta.")
+                # print("Erro: Nenhuma conta selecionada.")
+                return
+            
+            # Atualizar o nome do slide
+            cursor.execute("UPDATE slides SET nome = %s WHERE id = %s", (novo_nome, slide_id))
+
+            # Remover as contas antigas associadas ao slide
+            cursor.execute("DELETE FROM slide_codigos WHERE slide_id = %s", (slide_id,))
+
+            # Adicionar as contas selecionadas ao slide
+            for conta_codigo in contas_selecionadas:
+                cursor.execute("INSERT INTO slide_codigos (slide_id, codigo) VALUES (%s, %s)", (slide_id, conta_codigo))
+
+            conexao.commit()
+
+            mensagem_sucesso("Slide editado com sucesso!")
+
+            # Atualizar a lista de slides no combo_box (tela principal)
+            combo_box.clear()
+            cursor.execute("SELECT id, nome FROM slides WHERE id_empresa = %s", (id_empresa,))
+            slides_atualizados = cursor.fetchall()
+            # print(f"Slides recuperados do banco: {slides_atualizados}")  # Verificar o retorno
+            # if not slides_atualizados:
+            #     print("Nenhum slide encontrado para a empresa.")
+            
+            combo_box.addItem("Slides")
+            combo_box.model().item(0).setEnabled(False) 
+            # Define o item "Slides" como nulo
+            
+            for slide in slides_atualizados:
+                # A tupla de cada slide tem dois elementos, o id e o nome.
+                combo_box.addItem(slide[1], slide[0])  # slide[1] = nome, slide[0] = id
+                # print(f"Adicionado ao combo: {slide[1]}")  # Verificar se os itens estão sendo adicionados
+
+            dialogo.accept()
+
+        except Exception as e:
+            mensagem_error(f"Erro ao editar o slide: {e}")
+            conexao.rollback()
+        
+        finally:
+            cursor.close()
+            conexao.close()
+
+    def exportar_tabela_para_powerpoint(self, tabela, nome_slide, nome_empresa, caminho_logo):
+
+        if self.stack_layout.currentWidget() == self.imagem_placeholder:
+            mensagem_error("Nenhum dado encontrado para exportar.")
+            return
+    # Obter o caminho da pasta Downloads
+        caminho_downloads = Path.home() / "Downloads" / "Apresentações" / nome_empresa
+        caminho_downloads.mkdir(parents=True, exist_ok=True)
+        arquivo_saida = caminho_downloads / f"{nome_empresa} - Apresentação.pptx"
+
+        # Verificar se a tabela tem dados válidos para exportar
+        linhas = tabela.rowCount()
+        colunas = tabela.columnCount()
+        if linhas == 0 or colunas == 0:
+            mensagem_error("Nenhum dado encontrado para exportar.")
+            return
+
+        # Tentar abrir uma apresentação existente, caso contrário, criar uma nova
+        try:
+            prs = Presentation(arquivo_saida)  # Tenta carregar uma apresentação existente
+        except Exception:
+            prs = Presentation()  # Se o arquivo não existir, cria uma nova apresentação
+
+        # Adiciona um novo slide com layout de título + conteúdo
+        slide_layout = prs.slide_layouts[5]
+        slide = prs.slides.add_slide(slide_layout)
+
+        # Adiciona título ao slide
+        slide.shapes.title.text = f"{nome_slide}"
+        titulo = slide.shapes.title
+        titulo.text_frame.paragraphs[0].font.name = "Arial"
+        titulo.text_frame.paragraphs[0].font.bold = True
+        titulo.text_frame.paragraphs[0].font.size = Pt(18)
+        titulo.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+        titulo.top = Inches(0.25)
+        titulo.width = Inches(9.5)
+        titulo.height = Inches(1)
+
+        # Adiciona a logo da empresa ao lado do título
+        try:
+            slide.shapes.add_picture(
+                caminho_logo,
+                Inches(7),
+                Inches(0.25),
+                width=Inches(2.5),
+                height=Inches(1)
+            )
+        except Exception as e:
+            print(f"Erro ao adicionar a imagem da logo: {e}")
+
+        # Configuração do fundo
+        fundo = slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE,
+            Inches(0), Inches(1.4), Inches(10), Inches(6.6)
+        )
+        fundo.fill.solid()
+        fundo.fill.fore_color.rgb = RGBColor(240, 240, 240)
+        fundo.line.fill.solid()
+        fundo.line.fill.fore_color.rgb = RGBColor(240, 240, 240)
+
+        # Recupera os dados da tabela
+        dados = []
+        for i in range(linhas):
+            row_dados = []
+            for j in range(colunas):
+                item = tabela.item(i, j)
+                if item:
+                    row_dados.append(item.text())
+                else:
+                    row_dados.append("")
+            dados.append(row_dados)
+
+        # Identificar o índice da coluna "Descrição"
+        coluna_descricao = -1
+        for col_index in range(colunas):
+            if tabela.horizontalHeaderItem(col_index).text() == "Descrição":
+                coluna_descricao = col_index
+                break
+
+        # Insere os dados como uma tabela no slide
+        tabela_slide = slide.shapes.add_table(
+            rows=len(dados) + 1,
+            cols=colunas,
+            left=Inches(1.4),
+            top=Inches(1.6),
+            width=Inches(4),
+            height=Inches(0.5),
+        ).table
+
+        # Configurar os cabeçalhos da tabela
+        for col_index in range(colunas):
+            tabela_slide.cell(0, col_index).text = tabela.horizontalHeaderItem(col_index).text()
+            tabela_slide.cell(0, col_index).text_frame.paragraphs[0].font.bold = True
+            tabela_slide.cell(0, col_index).text_frame.paragraphs[0].font.size = Pt(10)
+
+        colunas_direita = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro', 'Saldo Anterior', 'Débitos', 'Créditos', 'Saldo Atual', 'Total']
+
+        for row_index, linha_dados in enumerate(dados):
+            for col_index, valor in enumerate(linha_dados):
+                cell = tabela_slide.cell(row_index + 1, col_index)
+                cell.text = valor
+                cell.text_frame.word_wrap = False
+                cell.text_frame.paragraphs[0].font.size = Pt(8)
+
+                if tabela.horizontalHeaderItem(col_index).text() in colunas_direita:
+                    cell.text_frame.paragraphs[0].alignment = PP_ALIGN.RIGHT
+                else:
+                    cell.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+
+        if coluna_descricao != -1:
+            tabela_slide.columns[coluna_descricao].width = Inches(3.5)
+
+        for col_index in range(colunas):
+            if col_index != coluna_descricao:
+                tabela_slide.columns[col_index].width = Inches(0.9)
+
+        altura_total = 0.4 + 0.3 * len(dados)
+        tabela_slide.height = Inches(altura_total)
+
+        try:
+            prs.save(arquivo_saida)
+        except PermissionError:
+            mensagem_error("Erro ao salvar a apresentação. Verifique se o arquivo não está aberto.")
+            return
+        except Exception as e:
+            mensagem_error("Erro ao salvar a apresentação.")
+            return
+
+        mensagem_sucesso(f"Apresentação exportada com sucesso para o arquivo '{arquivo_saida}'.")
 
     def baixar_icone(self, url, caminho):
         dir_name = os.path.dirname(caminho)
