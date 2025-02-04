@@ -110,7 +110,7 @@ class UserLogin(QtWidgets.QWidget):
         conexao = conectar_com_banco()
         tabela_usuario(conexao)
         cursor = conexao.cursor()
-        cursor.execute("USE railway")
+        cursor.execute("USE balancete")
         cursor.execute("SELECT senha FROM user WHERE nome = %s", (user,))
         result = cursor.fetchone()
         
@@ -252,7 +252,7 @@ class UserCadastro(QtWidgets.QWidget):
         conexao = conectar_com_banco()
         tabela_usuario(conexao)
         cursor = conexao.cursor()
-        cursor.execute("USE railway")
+        cursor.execute("USE balancete")
         cursor.execute("INSERT INTO user (nome, senha) VALUES (%s, %s)", (user, password))
         conexao.commit()
         mensagem_sucesso("Usuário cadastrado com sucesso.")
@@ -353,7 +353,7 @@ class EmpresaWindow(QtWidgets.QWidget):
         tabela_empresa(conexao)
         try:
             cursor = conexao.cursor()
-            cursor.execute("USE railway")
+            cursor.execute("USE balancete")
             cursor.execute("SELECT razao_social FROM empresas ORDER BY razao_social ASC")
             empresas = [row[0] for row in cursor.fetchall()]
             
@@ -471,7 +471,7 @@ class EmpresaCadastro(QtWidgets.QWidget):
             conexao = conectar_com_banco()
             tabela_empresa(conexao)
             cursor = conexao.cursor()
-            cursor.execute("USE railway")
+            cursor.execute("USE balancete")
             cursor.execute("INSERT INTO empresas (cnpj, razao_social, user) VALUES (%s, %s, %s)", (cnpj, razao_social, self.user))
             conexao.commit()
             mensagem_sucesso("Empresa cadastrada com sucesso.")
@@ -582,7 +582,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setLayout(self.layout)
     
     
-    def inserir_dados_mensal(self, progress_bar, label_arquivo,  empresa, nome_usuario):
+    def inserir_dados_mensal(self, progress_bar, label_arquivo,  empresa, nome_usuario, stack_layout):
+        stack_layout.setCurrentWidget(self.imagem_placeholder)
         balancete_mensal = 'balancete_mensal'
         arquivo, _ = QFileDialog.getOpenFileName(self, "Selecione o Arquivo", "", "Arquivos Excel (*.xlsx)")
 
@@ -721,9 +722,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def criar_botoes(self):
         self.botoes_info = [
-            ("Inserir Balancete", lambda: self.inserir_dados_mensal(self.progress_bar, self.label_arquivo, self.empresa, self.user)),
-            ("Criar Slide", lambda: self.criar_slide(self.combo_box_slides, self.tabela, self.empresa)),
-            ("Editar Slide", lambda: self.editar_slide(self.combo_box_slides, self.tabela, self.empresa)),
+            ("Inserir Balancete", lambda: self.inserir_dados_mensal(self.progress_bar, self.label_arquivo, self.empresa, self.user, self.stack_layout)),
+            ("Criar Slide", lambda: self.criar_slide(self.combo_box_slides, self.tabela, self.empresa, self.stack_layout)),
+            ("Editar Slide", lambda: self.editar_slide(self.combo_box_slides, self.tabela, self.empresa, self.stack_layout)),
         ]
 
         for texto, comando in self.botoes_info:
@@ -1170,7 +1171,8 @@ class MainWindow(QtWidgets.QMainWindow):
             largura_atual = tabela.columnWidth(coluna)
             tabela.setColumnWidth(coluna, largura_atual + 20)
     
-    def criar_slide(self, combo_box, tabela, empresa):
+    def criar_slide(self, combo_box, tabela, empresa, stack_layout):
+        stack_layout.setCurrentWidget(self.imagem_placeholder)
         with conectar_com_banco() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT 1 FROM balancete_mensal WHERE empresa = %s LIMIT 1", (empresa,))
@@ -1192,9 +1194,12 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Campo de entrada para o nome do slide
         nome_label = QLabel("Digite o nome do slide:", dialogo)
+        nome_label.setStyleSheet("font-size: 16px;")
         layout.addWidget(nome_label)
         
         nome_input = QLineEdit(dialogo)
+        nome_input.setStyleSheet("font-size: 16px; padding: 10px;")
+        nome_input.setPlaceholderText("Nome do Slide")
         layout.addWidget(nome_input)
         
         # Consultar as contas disponíveis no banco de dados
@@ -1239,6 +1244,7 @@ class MainWindow(QtWidgets.QMainWindow):
         salvar_btn.clicked.connect(lambda: self.salvar_numeros_contas(
             nome_input, contas_lista.selectedItems(), dialogo, combo_box, tabela, empresa))
         salvar_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        salvar_btn.setStyleSheet("font-size: 16px; padding: 10px; background-color: #001F3F; color: white;")
         layout.addWidget(salvar_btn)
         
         dialogo.exec()
@@ -1296,7 +1302,8 @@ class MainWindow(QtWidgets.QMainWindow):
             conexao.close()
 
 
-    def editar_slide(self, combo_box, tabela, empresa):
+    def editar_slide(self, combo_box, tabela, empresa, stack_layout):
+        stack_layout.setCurrentWidget(self.imagem_placeholder)
         with conectar_com_banco() as conexao:
             with conexao.cursor() as cursor:
                 cursor.execute("SELECT id FROM empresas WHERE razao_social = %s", (empresa,))
