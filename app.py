@@ -110,7 +110,7 @@ class UserLogin(QtWidgets.QWidget):
         conexao = conectar_com_banco()
         tabela_usuario(conexao)
         cursor = conexao.cursor()
-        cursor.execute("USE balancete")
+        cursor.execute("USE railway")
         cursor.execute("SELECT senha FROM user WHERE nome = %s", (user,))
         result = cursor.fetchone()
         
@@ -252,7 +252,7 @@ class UserCadastro(QtWidgets.QWidget):
         conexao = conectar_com_banco()
         tabela_usuario(conexao)
         cursor = conexao.cursor()
-        cursor.execute("USE balancete")
+        cursor.execute("USE railway")
         cursor.execute("INSERT INTO user (nome, senha) VALUES (%s, %s)", (user, password))
         conexao.commit()
         mensagem_sucesso("Usuário cadastrado com sucesso.")
@@ -353,7 +353,7 @@ class EmpresaWindow(QtWidgets.QWidget):
         tabela_empresa(conexao)
         try:
             cursor = conexao.cursor()
-            cursor.execute("USE balancete")
+            cursor.execute("USE railway")
             cursor.execute("SELECT razao_social FROM empresas ORDER BY razao_social ASC")
             empresas = [row[0] for row in cursor.fetchall()]
             
@@ -471,7 +471,7 @@ class EmpresaCadastro(QtWidgets.QWidget):
             conexao = conectar_com_banco()
             tabela_empresa(conexao)
             cursor = conexao.cursor()
-            cursor.execute("USE balancete")
+            cursor.execute("USE railway")
             cursor.execute("INSERT INTO empresas (cnpj, razao_social, user) VALUES (%s, %s, %s)", (cnpj, razao_social, self.user))
             conexao.commit()
             mensagem_sucesso("Empresa cadastrada com sucesso.")
@@ -616,6 +616,7 @@ class MainWindow(QtWidgets.QMainWindow):
             0,
             False
         )
+        
 
         if not ok_mes:
             mensagem_aviso("Nenhum mês foi selecionado.")
@@ -754,9 +755,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.combo_ano = QtWidgets.QComboBox()
         self.combo_ano.addItems(["Escolha o ano", str(ano_atual - 1), str(ano_atual), str(ano_atual + 1), str(ano_atual + 2)])
         self.combo_ano.model().item(0).setEnabled(False)
+        self.combo_ano.setStyleSheet("font-size: 16px; padding: 5px; color: #000000; background-color: #b0e0e6;")
         
         self.combo_box_slides = QtWidgets.QComboBox()
+        self.combo_box_slides.setStyleSheet("font-size: 16px; padding: 5px; color: #000000; background-color: #b0e0e6;")
         self.combo_box_meses = QtWidgets.QComboBox()
+        self.combo_box_meses.setStyleSheet("font-size: 16px; padding: 5px; color: #000000; background-color: #b0e0e6;")
         
         conexao = conectar_com_banco()
         tabela_slide(conexao)
@@ -1187,8 +1191,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dialogo = QDialog(self)
         dialogo.setWindowTitle("Criar Novo Slide")
         
-        # Ajuste o tamanho da janela
-        dialogo.resize(500, 400)  # Tamanho maior da janela
+        dialogo.resize(800, 600) 
         
         layout = QVBoxLayout(dialogo)
         
@@ -1319,7 +1322,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         dialogo = QDialog(self)
         dialogo.setWindowTitle("Editar Slide")
-        dialogo.resize(500, 400)
+        dialogo.resize(800, 600)
 
         layout = QVBoxLayout(dialogo)
 
@@ -1327,6 +1330,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(slide_label)
 
         slide_combo = QComboBox(dialogo)
+        slide_combo.setStyleSheet("font-size: 16px; padding: 10px;")
 
         
         # Associar o slide_id com o nome
@@ -1335,9 +1339,11 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(slide_combo)
 
         nome_label = QLabel("Digite o novo nome do slide:", dialogo)
+        nome_label.setStyleSheet("font-size: 16px;")
         layout.addWidget(nome_label)
 
         nome_input = QLineEdit(dialogo)
+        nome_input.setStyleSheet("font-size: 16px; padding: 5px;")
         layout.addWidget(nome_input)
 
         contas_label = QLabel("Selecione as contas do slide:", dialogo)
@@ -1377,6 +1383,7 @@ class MainWindow(QtWidgets.QMainWindow):
         salvar_btn.clicked.connect(lambda: self.salvar_edicao_slide(
             slide_combo, nome_input, contas_lista, dialogo, combo_box, tabela, empresa))
         salvar_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        salvar_btn.setStyleSheet("font-size: 16px; padding: 10px; background-color: #001F3F; color: white;")
         layout.addWidget(salvar_btn)
 
         dialogo.exec()
